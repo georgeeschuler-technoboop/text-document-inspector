@@ -1,0 +1,11 @@
+import test from 'node:test';import assert from 'node:assert/strict';import handler from './netlify/functions/inspect.mjs';
+const request=(body={name:'draft.md',file:Buffer.from('hello').toString('base64')},token='secret')=>new Request('https://example.org/.netlify/functions/inspect',{method:'POST',headers:{Authorization:'Bearer '+token},body:JSON.stringify(body)});
+process.env.INSPECTOR_ACCESS_TOKEN='secret';process.env.WATERMARKS_SERVICE_URL='https://backend.example';process.env.WATERMARKS_SERVER_API_KEY='backend-secret';
+await test('reject unauthenticated calls',async()=>assert.equal((await handler(request(undefined,'wrong'))).status,401));
+await test('report missing setup',async()=>{delete process.env.WATERMARKS_SERVER_API_KEY;assert.equal((await handler(request())).status,503);process.env.WATERMARKS_SERVER_API_KEY='backend-secret';});
+await test('block path injection and unsupported extensions',async()=>{assert.equal((await handler(request({name:'../test.md',file:'YQ=='}))).status,400);assert.equal((await handler(request({name:'test.exe',file:'YQ=='}))).status,400);});
+await test('inspection-only request excludes client detector/cleanup options',async()=>{globalThis.fetch=async(url,options)=>{assert.equal(url.pathname,'/inspect');assert.deepEqual(JSON.parse(options.body),{name:'draft.md',file:'aGVsbG8=',detect:false});assert.equal(options.headers.Authorization,'Bearer backend-secret');return Response.json({ok:true,report:{}});};const r=await handler(request({name:'draft.md',file:'aGVsbG8=',detect:true,clean:true}));assert.equal(r.status,200);assert.equal((await r.json()).mode,'inspection-only');});
+await test('upstream failure is explicit',async()=>{globalThis.fetch=async()=>{throw Error('timeout');};assert.equal((await handler(request())).status,502);});
+await test('invalid base64 rejected',async()=>assert.equal((await handler(request({name:'a.md',file:'???'}))).status,400));
+await test('oversize document rejected',async()=>assert.equal((await handler(request({name:'a.md',file:Buffer.alloc(2100000).toString('base64')}))).status,413));
+await test('insecure backend rejected',async()=>{process.env.WATERMARKS_SERVICE_URL='http://backend.example';assert.equal((await handler(request())).status,503);});
