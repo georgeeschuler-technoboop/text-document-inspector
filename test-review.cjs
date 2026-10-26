@@ -1,0 +1,10 @@
+const assert=require('node:assert/strict'),M=require('./dist/review-model.js');
+assert.equal(M.detectorStatus([{available:false,detector:'gumbel'}]).label,'Unavailable');
+assert.equal(M.detectorStatus([{available:true,is_watermarked:false}]).label,'No signal in configured tests');
+assert.equal(M.detectorStatus([{available:true,is_watermarked:true}]).label,'Signal reported');
+assert.equal(M.detectorStatus([{available:true,error:'failed'}]).ran,0);
+assert.deepEqual(M.codePointRange('😀Hello world',[1,6]),{offset:2,end:7});
+assert.equal(M.codePointRange('abc',[0,20]),null);
+assert.match(M.summarize([{kind:'character',after:' '},{kind:'character',after:''},{kind:'style',after:'edited'}]),/1 space standardized · 1 hidden character removed · 1 editorial edit/);
+assert.match(M.summarize([]),/matches the reviewed original/);
+console.log('8 review-model checks passed.');
