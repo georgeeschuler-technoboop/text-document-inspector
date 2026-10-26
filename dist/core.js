@@ -25,7 +25,7 @@ function visible(text){let out='',pos=0;for(const f of scan(text)){out+=text.sli
 function style(text,seed){
  const out=[];
  for(const s of seed){let offset=text.indexOf(s.before);if(offset>=0&&text.indexOf(s.before,offset+1)<0)out.push({...s,offset,end:offset+s.before.length,kind:'editorial judgment'});}
- let i=0;for(const ch of text){if(ch==='—')out.push({id:'dash'+i,offset:i,end:i+1,before:ch,after:null,title:'Em dash: rewrite in context',rule:'§3.3 / §9 Dash pass',reason:'The guide requires zero em dashes. Choose a period, comma, or a sentence rewrite; no automatic substitution.',kind:'exact character check'});i+=ch.length;}
+ let i=0;for(const ch of text){if(ch==='—')out.push({id:'dash'+i,offset:i,end:i+1,before:ch,after:null,title:'Em dash: rewrite in context',rule:'Optional em-dash check',reason:'You selected em-dash review. Consider a period, comma, or sentence rewrite where appropriate; no automatic substitution.',kind:'exact character check'});i+=ch.length;}
  return out;
 }
 async function unzip(buffer,inflate){
