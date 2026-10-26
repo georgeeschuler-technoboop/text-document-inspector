@@ -11,11 +11,18 @@ export default async function handler(req){
  if(Number(req.headers.get('content-length')||0)>2900000)return reply(413,{error:'Server inspection limit is 2 MB.'});
  const reader=req.body?.getReader();if(!reader)return reply(400,{error:'Missing body.'});let chunks=[],size=0;while(true){const {done,value}=await reader.read();if(done)break;size+=value.length;if(size>2900000){await reader.cancel();return reply(413,{error:'Server inspection limit is 2 MB.'});}chunks.push(value);}
  const body=JSON.parse(Buffer.concat(chunks).toString('utf8'));
- if(typeof body.name!=='string'||!/^.{1,180}\.(txt|md|markdown|docx)$/i.test(body.name)||/[\\/\x00-\x1f]/.test(body.name)||typeof body.file!=='string'||! /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(body.file))return reply(400,{error:'Invalid document name or encoding.'});
+ if(body.action==='connect'){
+  const health=await fetch(new URL('/health',url),{method:'GET',redirect:'error',headers:{Authorization:'Bearer '+key},signal:AbortSignal.timeout(20000)});
+  if(!health.ok)return reply(502,{error:'The inspection service is waking up or unavailable.'});
+  const state=await health.json();if(state.ok!==true)return reply(502,{error:'The inspection service is not ready.'});
+  return reply(200,{ok:true,connected:true});
+ }
+ if(body.action!==undefined)return reply(400,{error:'Unsupported action.'});
+ if(typeof body.name!=='string'||!/^.{1,180}\.(txt|md|markdown)$/i.test(body.name)||/[\\/\x00-\x1f]/.test(body.name)||typeof body.file!=='string'||! /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(body.file))return reply(400,{error:'Invalid document name or encoding.'});
  if(Buffer.from(body.file,'base64').length>2*1024*1024)return reply(413,{error:'Server inspection limit is 2 MB.'});
- const upstream=await fetch(endpoint,{method:'POST',redirect:'error',headers:{'Content-Type':'application/json',Authorization:'Bearer '+key},body:JSON.stringify({name:body.name,file:body.file,detect:false}),signal:AbortSignal.timeout(20000)});
+ const upstream=await fetch(endpoint,{method:'POST',redirect:'error',headers:{'Content-Type':'application/json',Authorization:'Bearer '+key},body:JSON.stringify({name:body.name,file:body.file,detect:true}),signal:AbortSignal.timeout(20000)});
  if(!upstream.ok)return reply(502,{error:'Inspection backend returned an error.'});
  const result=await upstream.json();if(result.ok!==true)return reply(502,{error:'Backend could not inspect this document.'});
- return reply(200,{engine:'guillaumemeyer/watermarks-remover',engineVersion:process.env.WATERMARKS_ENGINE_VERSION||'Not recorded',mode:'inspection-only',aiWatermarkStatus:'Not assessed',result});
+ return reply(200,{engine:'guillaumemeyer/watermarks-remover',engineVersion:process.env.WATERMARKS_ENGINE_VERSION||'Not recorded',mode:'inspection-and-detection',aiWatermarkStatus:'See individual configured detector results; unavailable tests give no verdict',result});
  }catch{return reply(502,{error:'Inspection failed or timed out. Original unchanged.'});}
 }
